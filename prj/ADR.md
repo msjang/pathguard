@@ -72,7 +72,7 @@ exclude:               # 스캔 제외 이름 (모든 watch 공통, ADR-0008)
 ui:
   language: auto        # auto(시스템 로케일) | en | ko  (ADR-0009)
 menu:
-  max_inline: 10        # 초과 건수 < 이 값이면 메뉴에 파일 트리 표시, 이상이면 리포트 열기 (ADR-0010)
+  max_inline: 10        # 메뉴에 인라인으로 보여줄 최대 항목 수(심한 것부터). 초과분은 "전체 리포트 열기…" (ADR-0010)
 ```
 
 **결과**: `warn_ratio`, 다중 `watch` 등 현재 상수를 설정으로 승격. Python 상수 방식은 Superseded 예정.
@@ -192,7 +192,7 @@ Go 트레이 앱 단계에서 카탈로그 골격 마련.
 Sync Pathguard              (헤더, 비활성 — 표시 이름, ADR-0011)
 ⚠ 초과 3 · 경고 8           (상태 요약, 비활성, 색+문구)
 ──────────
-초과 (n)        ▸           (n>0일 때만; n < menu.max_inline이면 파일 트리)
+초과 (n)        ▸           (n>0일 때만; worst max_inline개 인라인 + 초과분 리포트 링크)
 경고 (n)        ▸
 ──────────
 지금 검사  Scan now         (주기 스캔과 별개로 즉시 스캔)
@@ -202,16 +202,22 @@ Sync Pathguard              (헤더, 비활성 — 표시 이름, ADR-0011)
 나가기     Quit
 ```
 
-**결정 — 결과 트리 & 탐색**:
-- 초과/경고 건수 `< menu.max_inline`(기본 10) → 파일 목록을 인라인 서브메뉴로.
-  각 항목 = 이름(+NFD 바이트). `>=`이면 거대 네이티브 서브메뉴 대신 **"전체 리포트 열기…"**(생성 HTML/txt).
+**결정 — 결과 트리 & 탐색 (worst-first)**:
+- `초과 (n) ▸` 서브메뉴는 **심한 것부터(NFD 바이트 큰 순) 최대 `menu.max_inline`개**(기본 10)를 인라인으로.
+  각 항목 = 이름(+NFD 바이트), 클릭 시 reveal. `n > max_inline`이면 맨 아래에 **"전체 n건 리포트 열기…"** 추가.
+  → `n <= max_inline`이면 전부 인라인, 그 이상이면 worst N + 리포트 링크. **red 상태에서도 직접 reveal 유지.**
 - 파일 항목 클릭 → 파일 매니저에서 **선택 표시(reveal)**:
   - macOS: `open -R <path>`
   - Windows: `explorer /select,"<path>"`
   - Linux: 파일 선택 표준 없음 → 베스트에포트 폴더 열기(`xdg-open <dir>`), 가능하면 `nautilus/dolphin --select`.
+- **수정 루프**: reveal → 짧게 rename → `지금 검사`(또는 주기 스캔) → 건수·아이콘 갱신. worst-first라 고칠수록 다음 항목이 올라옴.
+- **리포트(전체 목록)**: 매 스캔 시 생성(HTML/txt). 심각도순 정렬, 전체 경로 + 현재/NFD 바이트 +
+  **"몇 바이트(≈몇 글자) 줄여야 한계 아래인지" 힌트**. 참조·복사용.
+  (후속/선택) 커스텀 URL 스킴 `syncpathguard://reveal?path=…` 등록 시 리포트 링크에서도 reveal.
 - 검사 중에는 아이콘 blue(ADR-0005).
 
-**결과**: 소량은 즉시 탐색, 다량은 리포트로. Linux reveal 한계는 OBS-20260707-05로 관리.
+**결과**: 소량·다량 모두 메뉴에서 worst-first로 즉시 탐색·수정, 전체 파악은 리포트로.
+red일 때 "클릭→점프" 사라지던 구멍 해소. Linux reveal 한계는 OBS-20260707-05로 관리.
 `Settings…` 전용 UI는 후속 과제(당장은 에디터로 conf 열기).
 
 ---
