@@ -1,69 +1,94 @@
 # sync-pathguard
 
-> 한글 파일명이 클라우드/NAS 동기화를 **조용히 깨뜨리기 전에** 잡아내는 읽기전용 감시 도구.
+[English](README.md) · [한국어](README.ko.md)
+
+> A read-only watcher that catches filenames which will **silently break your cloud/NAS sync** — before they do.
 
 [![CI](https://github.com/msjang/sync-pathguard/actions/workflows/ci.yml/badge.svg)](https://github.com/msjang/sync-pathguard/actions/workflows/ci.yml)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-동기화 폴더(Synology Drive · Dropbox · Nextcloud · OneDrive · iCloud Drive 등)의 파일명·경로
-**바이트 길이**를 감시해, 한글 조합형(NFD) 확장 때문에 `NAME_MAX`/`PATH_MAX`를 넘겨
-**동기화가 실패할 위험이 있는 파일을 미리 찾아냅니다.** 파일은 절대 건드리지 않고 **읽기만** 합니다.
+sync-pathguard scans a synced folder (Synology Drive · Dropbox · Nextcloud · OneDrive · iCloud Drive,
+etc.) and flags files whose **name or path byte length** may exceed the destination's `NAME_MAX` /
+`PATH_MAX` once Unicode is decomposed to **NFD** — a sync failure waiting to happen. It **only reads**;
+it never touches your files.
 
 ---
 
-## 왜 필요한가 — 한글 NFD 바이트 폭증
+## Why it matters — the NFD byte blowup
 
-파일시스템 한계 `NAME_MAX 255` / `PATH_MAX 4096` 은 **문자 수가 아니라 UTF-8 바이트 수**입니다.
-한글은 유니코드 정규화 형태에 따라 바이트 수가 달라집니다:
+Filesystem limits `NAME_MAX 255` / `PATH_MAX 4096` count **UTF-8 bytes, not characters**. And the
+byte length of the *same* text depends on its Unicode normalization form. Korean is the worst offender:
 
-| 형태 | 예 `보고서` | UTF-8 바이트 |
+| Form | `보고서` ("report") | UTF-8 bytes |
 |---|---|---|
-| **NFC (완성형)** | 완성 코드포인트 3개 `보·고·서` | **9 바이트** (자당 3B) |
-| **NFD (조합형)** | 자모 6개 `ㅂㅗ ㄱㅗ ㅅㅓ` | **18 바이트** (자당 6B, 받침 있으면 9B) |
+| **NFC (precomposed)** | 3 code points `보·고·서` | **9 bytes** (3B each) |
+| **NFD (decomposed)** | 6 jamo `ㅂㅗ ㄱㅗ ㅅㅓ` | **18 bytes** (6B each, 9B with a final consonant) |
 
-→ **NFD는 NFC의 2~3배** (받침 있는 글자는 3배). 받침 있는 한글 이름이라면:
+→ **NFD is 2–3× larger than NFC** (3× for syllables with a final consonant). For a name of Korean
+syllables that all carry a final consonant:
 
-- NFC 28글자 = 84B (여유)
-- **NFD 28글자 = 252B (255 코앞)**
+- NFC 28 chars = 84 B (plenty of room)
+- **NFD 28 chars = 252 B (right at the 255 edge)**
 
-### 동기화 파이프라인에서 벌어지는 일
+### Not just Korean
 
-- 로컬 폴더 ↔ 원격(예: `remote:/volume1/homes/johndoe/MyDocuments`)로 동기화한다고 하자.
-- 원격 파일시스템(NAS의 btrfs/ext4, Linux 서버 등)은 보통 `NAME_MAX 255`, `PATH_MAX 4096` (바이트).
-- **macOS는 새로 만든 한글 파일명을 NFD로 저장**하고, NFC 파일도 일부 수정 시 NFD로 풀리기도 합니다.
-- 안드로이드/아이폰 뷰어, 동기화 클라이언트마다 정규화 방식이 다를 수 있습니다.
+The "NFD makes it bigger" effect applies to **any script with combining characters** — Korean is
+merely the most extreme:
 
-즉 **지금 NFC라 맥에선 짧아 보여도**, 파이프라인 어딘가에서 NFD로 풀리면 길이가 튀어 `NAME_MAX`를
-넘겨 동기화 에러가 납니다. 그래서 이 도구는 **항상 NFD(최악치) 바이트로 환산**해서 검사합니다.
+| Char | Language | NFC → NFD | Ratio |
+|---|---|---|---|
+| `강` | Korean | 3 → 9 B | **3.0×** |
+| `が` | Japanese (voiced kana) | 3 → 6 B | 2.0× |
+| `ệ` | Vietnamese | 3 → 5 B | 1.67× |
+| `й` | Russian | 2 → 4 B | 2.0× |
+| `é` | French / German / Spanish… | 2 → 3 B | 1.5× |
+| `中` · `A` · `ก` | Han / Latin / Thai | no change | 1.0× |
 
-### ⚠️ 정규화로는 못 고칩니다
+The engine is language-agnostic — it just measures NFD bytes — so Vietnamese and French filenames are
+caught the same way.
 
-초과 파일이 이미 NFC여도 NFD 환산 길이가 한계를 넘으면 위험합니다.
-**NFC로 바꿔도 소용없고, 유일한 해법은 이름을 짧게 rename** 하는 것입니다
-(한글 ~7글자쯤 줄이면 NFD < 255).
+### What happens in the sync pipeline
 
-## 특징
+- Say you sync a local folder ↔ a remote (e.g. `remote:/volume1/homes/johndoe/MyDocuments`).
+- The remote filesystem (a NAS's btrfs/ext4, a Linux server, …) typically enforces `NAME_MAX 255`,
+  `PATH_MAX 4096` (bytes).
+- **macOS stores new Korean filenames as NFD**, and even NFC files can decompose to NFD on edit.
+- Mobile viewers and sync clients may each normalize differently.
 
-- 🔎 **NFD 최악치 기준** — 모든 파일/폴더명·전체 경로를 NFD로 환산한 UTF-8 바이트로 판정
-- 🧩 **동기화 앱 무관** — Synology Drive든 Dropbox든, 원격 경로 프리픽스만 지정하면 동작
-- 🛟 **읽기전용** — 파일을 수정·이동·삭제하지 않음
-- 📋 **리포트 + JSON** — 사람이 읽는 출력과 스크립트용 요약 JSON
-- 🧭 **로드맵**: 맥/윈도우 트레이·메뉴바 상주 앱, YAML 설정, 아이콘 상태 알림 (아래 [로드맵](#로드맵))
+So **even if it looks short on Windows today** (NFC), the moment it decomposes to NFD somewhere in the
+pipeline, the byte length spikes past `NAME_MAX` and the sync errors out. That's why this tool always
+measures the **NFD (worst-case) byte length**.
 
-## 설치 & 사용
+### ⚠️ Normalizing won't fix it
 
-현재는 의존성 없는 Python 3 단일 스크립트입니다.
+If an over-limit file is already NFC, its NFD-equivalent length still exceeds the limit — so converting
+to NFC does nothing. **The only real fix is to rename it shorter** (trimming ~7 Korean chars brings NFD
+back under 255).
+
+## Features
+
+- 🔎 **NFD worst-case** — judges every name and full path by its NFD-normalized UTF-8 byte length
+- 🌐 **Language-agnostic** — Korean, Vietnamese, accented Latin, and any combining-mark script
+- 🧩 **Sync-app agnostic** — Synology Drive, Dropbox, whatever; just point it at the remote path prefix
+- 🚫 **Exclusions** — noise dirs like `.git` and `@eaDir` (Synology cache) are skipped by default, configurable
+- 🛟 **Read-only** — never modifies, moves, or deletes a file
+- 📋 **Report + JSON** — human-readable output plus a summary JSON for scripting
+- 🧭 **Roadmap** — resident macOS/Windows tray & menu-bar app, YAML config, icon-state alerts (see [Roadmap](#roadmap))
+
+## Install & use
+
+Today it's a single, dependency-free Python 3 script.
 
 ```bash
 git clone https://github.com/msjang/sync-pathguard.git
 cd sync-pathguard
 
-python3 pathguard.py           # 사람이 읽는 리포트
-python3 pathguard.py --json    # 요약 JSON (스케줄/알림용)
+python3 pathguard.py           # human-readable report
+python3 pathguard.py --json    # summary JSON (for scheduling/alerts)
 ```
 
-검사할 폴더와 원격 경로는 환경변수로 지정합니다:
+Point it at your folder and remote path with environment variables:
 
 ```bash
 PATHGUARD_ROOT="$HOME/Documents" \
@@ -71,35 +96,40 @@ PATHGUARD_REMOTE_PREFIX="/volume1/homes/johndoe/MyDocuments" \
   python3 pathguard.py
 ```
 
-## 설정
+## Configuration
 
-| 변수 (env) | 기본값 | 의미 |
+| Variable (env) | Default | Meaning |
 |---|---|---|
-| `PATHGUARD_ROOT` | `~/Documents` | 검사 대상 로컬 폴더 |
-| `PATHGUARD_REMOTE_PREFIX` | `/volume1/homes/johndoe/MyDocuments` | 원격(NAS/클라우드) 쪽 절대경로 루트 (PATH_MAX 계산용) |
-| `PATHGUARD_NAME_MAX` | `255` | 파일/폴더명 하나의 바이트 한계 |
-| `PATHGUARD_PATH_MAX` | `4096` | 전체 경로 바이트 한계 |
-| `PATHGUARD_WARN` | `0.80` | 한계의 80%부터 경고 |
+| `PATHGUARD_ROOT` | `~/Documents` | Local folder to scan |
+| `PATHGUARD_REMOTE_PREFIX` | `/volume1/homes/johndoe/MyDocuments` | Remote (NAS/cloud) absolute root, for PATH_MAX |
+| `PATHGUARD_NAME_MAX` | `255` | Byte limit for a single file/folder name |
+| `PATHGUARD_PATH_MAX` | `4096` | Byte limit for the full path |
+| `PATHGUARD_WARN` | `0.80` | Warn once a name reaches 80% of the limit |
+| `PATHGUARD_EXCLUDE` | (default list below) | Comma-separated names to skip. **Replaces** the defaults when set; empty string disables exclusion |
 
-> 원격 경로 길이가 병목입니다. `PATHGUARD_REMOTE_PREFIX`를 실제 동기화 대상 경로와 맞추세요.
+Default exclusions: `.git`, `node_modules`, `@eaDir`, `#recycle`, `#snapshot`,
+`.DS_Store`, `.Trashes`, `.Spotlight-V100`, `.fseventsd`, `$RECYCLE.BIN`, `System Volume Information`
 
-## 동작 원리
+> The remote path length is the bottleneck — set `PATHGUARD_REMOTE_PREFIX` to your actual sync target.
 
-- 모든 파일/폴더의 이름·전체경로를 **NFD로 정규화한 뒤 UTF-8 바이트**로 측정
-- 이름 NFD > `NAME_MAX` → **초과**, `WARN`~한계 → **경고**
-- 전체경로(원격 절대경로) NFD > `PATH_MAX` → 초과/경고
-- `.git`, `@eaDir` 등 숨김/시스템 폴더도 동기화 대상이라 검사에 포함
+## How it works
 
-## 로드맵
+- Measures every name and full path as **UTF-8 bytes after NFD normalization**
+- Name NFD > `NAME_MAX` → **over**; `WARN`…limit → **warning**
+- Full path (remote absolute) NFD > `PATH_MAX` → over/warning
+- Excluded folders are not descended into; excluded files are skipped
 
-맥(인텔/애플실리콘)·윈도우에 상주하는 트레이·메뉴바 앱으로 발전시킬 계획입니다.
+## Roadmap
 
-- **단일 바이너리 배포** — Go 재구현, 의존성 없는 단일 실행파일 (macOS arm64/amd64, Windows amd64)
-- **트레이/메뉴바 상주** — 클릭 시 메뉴에서 감시 폴더·주기·시각 설정
-- **YAML 설정 파일** — 다중 감시 폴더, 한계/경고비율/알림 방식
-- **아이콘 상태 알림** — 위험 발견 시 아이콘이 경고/초과 상태로 변경
+Growing into a resident tray / menu-bar app for macOS (Intel & Apple Silicon) and Windows:
 
-설계 문서는 [`prj/`](prj/) 참고 (PRD · ADR · TASKS · NOTES).
+- **Single-binary distribution** — Go rewrite, one dependency-free executable (macOS arm64/amd64, Windows amd64)
+- **Resident tray / menu bar** — click to configure watched folders, interval, schedule, exclusions
+- **YAML config file** — multiple watch folders, limits/warn ratio/exclusions/alert style
+- **Icon-state alerts** — icon color changes with the over-limit count (gray → green → yellow → red)
+- **Localized UI** — follows the system locale by default; English and Korean selectable
+
+Design docs live in [`prj/`](prj/) (PRD · ADR · TASKS · NOTES).
 
 ## License
 

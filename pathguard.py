@@ -1,16 +1,31 @@
 #!/usr/bin/env python3
 """경로/파일명 길이 가드 (읽기전용).
-한글 NFD(조합형) 최악치 바이트로 환산해 NAME_MAX/PATH_MAX 초과·임박 파일을 찾는다.
+유니코드 NFD(조합형) 최악치 바이트로 환산해 NAME_MAX/PATH_MAX 초과·임박 파일을 찾는다.
+NFD 분해로 바이트가 늘어나는 건 한글이 가장 극단적이지만(3배) 베트남어·일본어 탁점가나·
+라틴 악센트 등 결합 문자 전반에서 일어난다. b_nfd()는 언어 무관하게 동작한다.
 동기화 대상 파일시스템(예: NAS의 btrfs/ext4)의 한계: NAME_MAX 255, PATH_MAX 4096 (바이트).
 설정은 환경변수로 덮어쓸 수 있다 (PATHGUARD_* 참고).
 """
 import os, sys, unicodedata, json
+
+# 동기화되지 않거나 도구/서버가 생성하는 노이즈 디렉터리·파일 (기본 제외).
+# 예: @eaDir=시놀로지 캐시(서버 생성), #recycle=시놀 휴지통, .git=보통 동기화 제외.
+DEFAULT_EXCLUDE = {
+    ".git", "node_modules",
+    "@eaDir", "#recycle", "#snapshot",              # Synology
+    ".DS_Store", ".Trashes", ".Spotlight-V100", ".fseventsd",  # macOS
+    "$RECYCLE.BIN", "System Volume Information",     # Windows
+}
 
 ROOT          = os.path.expanduser(os.environ.get("PATHGUARD_ROOT", "~/Documents"))
 REMOTE_PREFIX = os.environ.get("PATHGUARD_REMOTE_PREFIX", "/volume1/homes/johndoe/MyDocuments")  # 원격(NAS/클라우드) 쪽 절대경로 루트
 NAME_MAX      = int(os.environ.get("PATHGUARD_NAME_MAX", "255"))    # 바이트, 경로 구성요소(파일/폴더명) 하나당
 PATH_MAX      = int(os.environ.get("PATHGUARD_PATH_MAX", "4096"))   # 바이트, 전체 경로
 WARN          = float(os.environ.get("PATHGUARD_WARN", "0.80"))     # 한계의 80%부터 경고
+# PATHGUARD_EXCLUDE=쉼표구분 이름목록 (설정 시 기본값을 대체). 빈 문자열이면 제외 없음.
+_env_excl     = os.environ.get("PATHGUARD_EXCLUDE")
+EXCLUDE       = ({e.strip() for e in _env_excl.split(",") if e.strip()}
+                 if _env_excl is not None else set(DEFAULT_EXCLUDE))
 
 def b_nfc(s): return len(unicodedata.normalize('NFC', s).encode('utf-8'))
 def b_nfd(s): return len(unicodedata.normalize('NFD', s).encode('utf-8'))
@@ -23,8 +38,9 @@ def scan(root=ROOT):
     name_over, name_warn, path_over, path_warn = [], [], [], []
     total = 0
     for dp, dns, fns in os.walk(root):
-        # 숨김/시스템 폴더(.git, @eaDir 등)도 동기화 대상이라 포함해야 정확 (제외 안 함)
+        dns[:] = [d for d in dns if d not in EXCLUDE]   # 제외 폴더로는 내려가지 않음
         for name in list(dns) + list(fns):
+            if name in EXCLUDE: continue                # 제외 파일 건너뜀
             total += 1
             full = os.path.join(dp, name)
             rel  = os.path.relpath(full, root)
