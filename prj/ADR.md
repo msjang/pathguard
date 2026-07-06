@@ -63,6 +63,13 @@ notify:
   thresholds:          # 초과 파일 '건수' 기준 아이콘 색 임계
     yellow: 1          # 초과 이 개수 이상 → yellow
     red: 10            # 초과 이 개수 이상 → red
+exclude:               # 스캔 제외 이름 (모든 watch 공통, ADR-0008)
+  - .git
+  - "@eaDir"           # 시놀로지 캐시(서버 생성)
+  - "#recycle"
+  - node_modules
+ui:
+  language: auto        # auto(시스템 로케일) | en | ko  (ADR-0009)
 ```
 
 **결과**: `warn_ratio`, 다중 `watch` 등 현재 상수를 설정으로 승격. Python 상수 방식은 Superseded 예정.
@@ -132,3 +139,38 @@ FontAwesome Free는 CC BY 4.0 → 배포물에 attribution 필요(NOTES 참고).
 자동 시작은 맥 LaunchAgent, 윈도우 레지스트리 Run 키 또는 시작프로그램.
 
 **결과**: 초기 개발에는 미적용(로컬 실행). 배포 릴리스 시 확정.
+
+---
+
+## ADR-0008 — 노이즈 디렉터리 기본 제외(설정 가능)
+**상태**: Accepted
+
+**맥락**: 초기 가정은 "동기화 대상이니 `.obsidian` 등 시스템 폴더도 다 포함"이었으나, 재검토 결과 틀렸다.
+- `@eaDir`는 시놀로지가 **서버 쪽**에 만드는 캐시/썸네일이라 로컬 동기화 소스에 있지도 않고 사용자 콘텐츠도 아님.
+- `.git`, `node_modules` 등은 보통 동기화에서 제외하거나, 포함돼도 이름이 ASCII/해시라 길이 위험이 아님.
+- 이들을 세면 total·경고 수치에 노이즈가 낀다.
+
+**결정**: 기본 제외 목록을 두고 스캔에서 뺀다. 설정(`exclude`, CLI는 `PATHGUARD_EXCLUDE`)으로 대체 가능.
+기본값: `.git`, `node_modules`, `@eaDir`, `#recycle`, `#snapshot`, `.DS_Store`, `.Trashes`,
+`.Spotlight-V100`, `.fseventsd`, `$RECYCLE.BIN`, `System Volume Information`.
+제외 폴더로는 os.walk가 내려가지 않게 prune.
+
+**결과**: 초기 "전부 포함" 가정을 대체. Python 참조 구현에 반영 완료(env 대체 semantics).
+
+---
+
+## ADR-0009 — 문서·UI 다국어 (문서 en/ko 분리, UI는 로케일 기본)
+**상태**: Accepted
+
+**맥락**: NFD 폭증은 한글이 극단적일 뿐 결합 문자 언어(베트남어·라틴 악센트 등) 전반의 문제.
+검사 엔진은 이미 언어 무관(`b_nfd`는 어떤 문자열이든 처리)이라 i18n이 필요 없다.
+남는 건 (1) 문서 언어, (2) 앱 UI 언어.
+
+**결정**:
+- 문서: `README.md`(영어, 1차) + `README.ko.md`(한국어). 상단에서 서로 링크. GitHub 공개 리치 우선.
+- UI 언어(트레이 앱): 설정 `ui.language = auto | en | ko`. **기본 `auto`(시스템 로케일)**, 영어·한국어 선택.
+  문자열이 적으므로(메뉴/알림 십수 개) message catalog로 가볍게 처리. 새 언어는 카탈로그 추가로 확장.
+- 엔진: 손대지 않음(이미 언어 무관).
+
+**결과**: README를 en/ko로 분리. "한글 전용"이 아니라 "NFD-safe filename guard"로 포지셔닝.
+Go 트레이 앱 단계에서 카탈로그 골격 마련.

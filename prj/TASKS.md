@@ -11,18 +11,22 @@
 - **T-0004a** `DONE` — README를 GitHub 공개 앱 소개형으로 재작성 (뱃지·특징·설치·설정·동작원리·로드맵·라이선스).
 - **T-0004b** `DONE` — GitHub Actions CI: Python 문법검사 + 스모크 테스트(임시 폴더에 NFD 초과 파일 생성해 탐지 확인).
 - **T-0004c** `DONE` — MIT LICENSE 추가 (holder: sync-pathguard contributors).
+- **T-0004d** `DONE` — 노이즈 디렉터리 기본 제외 + `PATHGUARD_EXCLUDE` 설정, Python 반영. (ADR-0008)
+- **T-0004e** `DONE` — README를 `README.md`(영어)/`README.ko.md`(한글)로 분리·상호링크, "한글만의 문제 아님" 표 추가. (ADR-0009)
 
 ## 스택 전환 (Go)
 
 - **T-0004** `TODO` — Go 프로젝트 스캐폴드: `go.mod`, 디렉터리 구조, 교차컴파일 스크립트(darwin arm64/amd64, windows amd64). (ADR-0002)
 - **T-0005** `TODO` — 스캔 코어 이식: `pathguard.py` 로직을 Go로. `x/text/unicode/norm`으로 NFD 바이트 측정, NAME_MAX/PATH_MAX 판정. Python 대비 결과 동일성 검증. (ADR-0001, 0002)
-- **T-0006** `TODO` — YAML 설정 로더: 스키마(watch/limits/schedule/notify) 파싱, 기본값, OS별 설정 경로. 없으면 기본 config 생성. (ADR-0003)
+- **T-0006** `TODO` — YAML 설정 로더: 스키마(watch/limits/schedule/notify/exclude/ui) 파싱, 기본값, OS별 설정 경로. 없으면 기본 config 생성. (ADR-0003, 0008, 0009)
+- **T-0006b** `TODO` — i18n message catalog: `ui.language = auto|en|ko`, auto는 시스템 로케일. 메뉴/알림 문자열 카탈로그화. (ADR-0009)
 
 ## 상주 앱
 
 - **T-0007** `TODO` — systray 상주 뼈대: 맥 메뉴바 + 윈도우 트레이 아이콘 표시, 메뉴(지금 스캔 / 설정 열기 / 종료). (ADR-0004)
 - **T-0008** `TODO` — 스케줄러: `schedule.interval`(+선택 `at`) 기준 폴링 스캔 루프. (ADR-0004)
-- **T-0009** `TODO` — 감시 폴더 관리 UI: 트레이 메뉴에서 폴더 추가/선택, 설정 파일에 왕복 반영. (ADR-0003, 0004)
+- **T-0009** `TODO` — 감시 폴더 관리 UI: 트레이 메뉴에서 폴더 추가/선택 + 제외 목록 편집, 설정 파일에 왕복 반영. (ADR-0003, 0004, 0008)
+- **T-0009b** `TODO` — 언어 설정 UI: 트레이 메뉴/설정에서 auto/en/ko 선택. (ADR-0009)
 - **T-0010** `TODO` — 감시 주기·시각 설정 UI: 메뉴에서 interval/at 조정. (ADR-0004)
 
 ## 알림
