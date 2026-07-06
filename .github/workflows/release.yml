@@ -7,7 +7,7 @@ name: Release
 #
 # NOTE: builds are UNSIGNED (T-0015). macOS Gatekeeper / Windows SmartScreen will
 # warn until code signing + notarization is added; the Homebrew cask clears the
-# quarantine flag as a stopgap (packaging/homebrew).
+# quarantine flag as a stopgap (see the msjang/homebrew-tap repo).
 on:
   push:
     tags: ["v*"]
