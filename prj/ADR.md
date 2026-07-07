@@ -254,7 +254,9 @@ red일 때 "클릭→점프" 사라지던 구멍 해소. Linux reveal 한계는 
 **결정**:
 - **macOS**: `Pathguard.app`(메뉴바 에이전트 → `LSUIElement=true`, Dock 아이콘 없음),
   번들 ID `io.github.msjang.pathguard`. **유니버설 바이너리**(arm64 네이티브 + amd64 `clang -arch x86_64` cgo → `lipo`)를
-  **arm64 러너(macos-14) 하나**에서 산출 → `Pathguard-macos-universal.zip`. Intel 러너 의존 제거. 아이콘 런타임 렌더라 `.icns` 불요.
+  **arm64 러너(macos-14) 하나**에서 산출 → `Pathguard-macos-universal.zip`. Intel 러너 의존 제거.
+  앱 번들 아이콘 `assets/AppIcon.icns`(파란 자, `tools/appicon`+`scripts/make-icns.sh`로 생성) 포함, `CFBundleIconFile=AppIcon`.
+  (트레이 아이콘은 런타임 렌더 `internal/trayicon`, 앱 아이콘과 별개.)
 - **Windows**: `Pathguard.exe`(`-ldflags -H=windowsgui`로 콘솔 숨김), CGO 불요(systray win32는 순수 Go).
 - **CLI(`pathguard`)**: 순수 Go → mac 유니버설 + Linux amd64/arm64 + Windows.
 - **CI 구조**: 각 job은 빌드만 → artifact 업로드, 마지막 `publish` job 하나가 릴리스에 몰아 업로드(동시 업로드 레이스 제거, Windows는 압축을 publish에서 하니 zip 도구 불요).

@@ -29,6 +29,8 @@ CGO_ENABLED=0 GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o build/cli-arm6
 CGO_ENABLED=0 GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o build/cli-amd64 ./cmd/pathguard
 lipo -create -output dist/pathguard build/cli-arm64 build/cli-amd64
 
+cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -38,6 +40,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 	<key>CFBundleDisplayName</key><string>Pathguard</string>
 	<key>CFBundleIdentifier</key><string>io.github.msjang.pathguard</string>
 	<key>CFBundleExecutable</key><string>pathguard-gui</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
 	<key>CFBundleShortVersionString</key><string>${VER_NUM}</string>
 	<key>CFBundleVersion</key><string>${VER_NUM}</string>
