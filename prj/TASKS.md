@@ -50,8 +50,10 @@
   publish가 기존 자산 클린 후 첨부. **v0.1.0 실제 릴리스 성공**(자산 5개). (ADR-0002, 0011, 0012)
   - 남음(선택): `.dmg` 포장(현재 zip).
 - **T-0015** `BLOCKED` — 맥 코드서명·공증, 윈도우 코드서명, 로그인 자동시작 등록. (ADR-0007, 0012, 인증서/계정 필요)
-- **T-0017** `DONE` — Homebrew 배포: 자체 tap `msjang/homebrew-tap`(cask=앱, formula=CLI) 구성 + v0.1.0 sha256 채움·push.
+- **T-0017** `DONE` — Homebrew 배포: 자체 tap `msjang/homebrew-tap`(cask=앱, formula=CLI) 구성 + sha256 채움·push.
   `brew tap msjang/tap && brew install --cask pathguard`(앱)/`brew install pathguard`(CLI). 자동 bump·공식 cask(공증 후)는 후속. (ADR-0012)
+- **T-0018** `DONE` — v0.1.1 릴리스: 태그 push→자동 빌드(자산 5개 발행 확인)→tap Cask+Formula를 0.1.1로 bump·sha256 갱신·push.
+  (옛 세션이 401 인증 만료로 tap bump 직전 중단됐던 걸 재개해 완결. tap commit `c8ee4bd`.)
 
 ## 정리
 
