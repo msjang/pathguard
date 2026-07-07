@@ -45,13 +45,13 @@
 
 ## 배포
 
-- **T-0014** `DONE` — 릴리스 파이프라인(`release.yml`, v* 태그): OS별 네이티브 빌드 →
-  macOS `.app`(arm64/amd64 각각, `scripts/package-macos.sh`, LSUIElement, 표시명 `Pathguard`),
-  Windows `.exe`(`-H=windowsgui`), Linux CLI 크로스빌드. GitHub Release 자동 첨부. (ADR-0002, 0011, 0012)
-  - 남음(선택): `.dmg` 포장(현재 zip), 태그 후 실제 릴리스 1회 검증.
+- **T-0014** `DONE` — 릴리스 파이프라인(`release.yml`, v* 태그): build→artifact→`publish` 단일 업로드(레이스 없음).
+  macOS **유니버설** `.app`(arm64+amd64 lipo, arm64 러너), Windows `.exe`(`-H=windowsgui`), Linux CLI 크로스빌드.
+  publish가 기존 자산 클린 후 첨부. **v0.1.0 실제 릴리스 성공**(자산 5개). (ADR-0002, 0011, 0012)
+  - 남음(선택): `.dmg` 포장(현재 zip).
 - **T-0015** `BLOCKED` — 맥 코드서명·공증, 윈도우 코드서명, 로그인 자동시작 등록. (ADR-0007, 0012, 인증서/계정 필요)
-- **T-0017** `DOING` — Homebrew 배포: 자체 tap repo `msjang/homebrew-tap` 생성·구성 완료(cask=앱, formula=CLI, README).
-  남음: 첫 릴리스(v0.1.0) 후 version/sha256 채우기 → tap 재푸시. 자동 bump 워크플로·공식 cask(공증 후)는 후속. (ADR-0012)
+- **T-0017** `DONE` — Homebrew 배포: 자체 tap `msjang/homebrew-tap`(cask=앱, formula=CLI) 구성 + v0.1.0 sha256 채움·push.
+  `brew tap msjang/tap && brew install --cask pathguard`(앱)/`brew install pathguard`(CLI). 자동 bump·공식 cask(공증 후)는 후속. (ADR-0012)
 
 ## 정리
 
